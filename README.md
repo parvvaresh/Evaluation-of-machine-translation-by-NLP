@@ -1,5 +1,14 @@
 # Evaluation of machine translation by NLP
 
+The following algorithms are common methods used to evaluate machine translation, and all these algorithms have been implemented and provided to you in the form of a document.
+
+
+The photo below is the result of these algorithms on 9 sentences in one of the Iranian machine translation sites : 
+
+
+![image](https://github.com/parvvaresh/Evaluation-of-machine-translation-by-NLP/assets/89921883/cd03abce-8d67-4fff-aae5-ead8eba8b14f)
+
+
 
 | metric | document in persain    | code | document in persain (google colab)
 | :---:   | :---: | :---: | :---: |
