@@ -1,107 +1,113 @@
-import math
-from .tool.n_gram import ngrams
-from .tool.counter_element import counter_element
-from .tool.overlaps_dict import overlaps_dict
+import numpy as np
+import string
 
 
-class nist:
-  """
+class wer:
+    def __init__(self):
+        """
+        ref = "the dog is under the table"
+        pred = "The dog is the fable"
+        score = model.fit(pred, ref)
+          ----> 0.33
+        model.get_detail()
+          ----> {'delete': 0, 'insert': 1, 'substitution': 1, 'same words': 4}
 
-    model = nist_score()
-    model.fit(["this is a blue ball and a good ball", "this color of ball id blue and good"], "the the the bal is bluu and god")
-      --->0.896865710312585
+        """
+        pass
 
-  """
-  def __init__(self, n = 5):
-    """ 
-      Quantification for number n-grams 
-    """ 
-    self.number_n_grams = n
-  
-  def nist_score(self, refs, pred): 
+    def wer_score(self, ref, pred):
+        """
+        We used the distance matrix to calculate the number of titles below :
+          1 --- > delete
+          2 --- > insert
+          3 --- > substitution
 
-    """
-      refs ---> [ref1, ref2, ref3, ...] and pred is str
-      Calculation of n-grams for different amounts
-    """
-    pred_ngrams = [ngrams(pred, n) for n in range(1 , self.number_n_grams + 1)]
-    refs_ngrams = [[ngrams(ref, n) for n in range(1, self.number_n_grams + 1)] for ref in refs]
+          we use backtrcing method and dynamic programming
 
-    """
+        """
+        self.pred = self._preproocess(pred)
+        self.ref = self._preproocess(ref)
 
-      In all the obtained grammars, we can see that each element is repeated several times ---- > refs_ngrams_freq
-      and
-
-    """
-    refs_ngrams_freq ,refs_total_words = dict() , 0
-    for index in range(0, len(refs)):
-      refs_total_words += len(refs[index].split())
-      for num_gram in range(0, self.number_n_grams):
-        count_ngrams = counter_element(refs_ngrams[index][num_gram])
-        for element in count_ngrams:
-          refs_ngrams_freq[element] = (refs_ngrams_freq[element] + count_ngrams[element]) if element in refs_ngrams_freq else 1
-
-    info = self._info(refs_ngrams_freq, refs_total_words)
-
+        """
+      Define the numbers used 
+        1 -- > same words
+        2 ---> insert
+        3 ---> delete
+        4 ---> substitution
     """
 
-      For each gram in X and each reference sentence in the references, 
-      it first calculates no points and selects the highest one, 
-      and then selects the reference sentences that caused the highest points to calculate the penalty.
+        costs = np.zeros((1 + len(self.pred), 1 + len(self.ref)))
+        self.backtrace = np.zeros((1 + len(self.pred), 1 + len(self.ref)))
 
-    """
+        costs[0] = [j for j in range(0, len(self.ref) + 1)]
+        self.backtrace[0][:] = 2
 
-    nist_score , pred_lenght, ref_lenght = [], len(pred.split()), 0
-    for n in range(0, self.number_n_grams):
-      
-      nist_precisions = list()
-      for index_ref in range(0, len(refs)):
-        ref_count_gram = counter_element(refs_ngrams[index_ref][n])
-        pred_coumt_gram = counter_element(pred_ngrams[n])
-        overlaps_ngram = overlaps_dict(ref_count_gram, pred_coumt_gram)
-        numerator = sum([info[n_gram] * count for n_gram, count in overlaps_ngram.items()])
-        denominator = sum(pred_coumt_gram.values())
-        nist_precisions.append(numerator / denominator)
-      nist_score.append(max(nist_precisions))
-      ref_lenght += len(refs[nist_precisions.index(max(nist_precisions))].split())
-    
-    return sum(nist_score) * self._length_penalty(ref_lenght / self.number_n_grams, pred_lenght)
-    
+        costs[:, 0] = [j for j in range(0, len(self.pred) + 1)]
+        self.backtrace[:][0] = 3
 
+        self.backtrace[0][0] = 10  # None
 
+        for row in range(1, len(self.pred) + 1):
+            for col in range(1, len(self.ref) + 1):
+                if self.pred[row - 1] == self.ref[col - 1]:
+                    costs[row][col] = costs[row - 1][col - 1]
+                    self.backtrace[row][col] = 1
+                else:
+                    substitution = costs[row - 1][col - 1]
+                    delete = costs[row - 1][col]
+                    insert = costs[row][col - 1]
+                    fainal_cost = min(delete, insert, substitution)
+                    costs[row][col] = fainal_cost + 1
+                    if fainal_cost == delete:
+                        self.backtrace[row][col] = 3
+                    elif fainal_cost == insert:
+                        self.backtrace[row][col] = 2
+                    elif fainal_cost == substitution:
+                        self.backtrace[row][col] = 4
 
-  def _info(self, refs_ngrams_freq, refs_total_words):
-    """
+        return costs[-1][-1] / len(self.ref)
 
-      Here we calculate the weight for members of refs_ngrams_freq
-      According to the formula -----‌> log2(occurrence w1, w2, ... wn-1, occurrence w1, w2, ... wn)
+    def _preproocess(self, text):
+        """
 
-    """
-    info = dict()
-    for grams_1n in refs_ngrams_freq:
-      grams_1m = grams_1n[ : -1] #w1, w2, ... wn-1
-      occurrence = refs_ngrams_freq[grams_1m] if grams_1m and grams_1m in refs_ngrams_freq else refs_total_words
-      info[grams_1n] = math.log(occurrence / refs_ngrams_freq[grams_1n], 2)
-    return info
+        It preprocesses the data to prepare it for processing,
+        which includes lowercase all letters, remove punctuation marks, and tokenize words.
 
+        """
+        persian_punctuations = """`÷×؛<>_()*&^%][ـ،/:"؟.,'{}~¦+|!”…“–ـ"""
+        punctuations_list = string.punctuation + persian_punctuations
+        text = text.lower()
+        translator = str.maketrans("", "", punctuations_list)
+        text = text.translate(translator)
+        text = text.split()
+        return text
 
+    def get_detail(self):
+        i, j = len(self.pred), len(self.ref)
+        self.num_same, self.num_del, self.num_sub, self.num_ins = 0, 0, 0, 0
 
-  def _length_penalty(self, refs_lenght, pred_lenght):
+        while i > 0 or j > 0:
+            if self.backtrace[i][j] == 1:
+                i -= 1
+                j -= 1
+                self.num_same += 1
 
+            if self.backtrace[i][j] == 4:
+                i -= 1
+                j -= 1
+                self.num_sub += 1
 
-    """
-      The penalty rate to be calculated
-      Here, β is chosen so that the brevity penalty factor = 0.5 when the number of words
-      in the hypothesis is 2/3 of the average number of words in the reference. |r̄ | means the
-      average number of words in the reference.
-    """
+            if self.backtrace[i][j] == 2:
+                j -= 1
+                self.num_ins += 1
 
+            if self.backtrace[i][j] == 3:
+                i -= 1
+                self.num_del += 1
 
-    ratio = pred_lenght / refs_lenght
-    if 0 < ratio < 1:
-        beta = math.log(0.5) / math.log(1.5) ** 2
-        return math.exp(beta * math.log(ratio) ** 2)
-    else:  
-        return 1
-
-
+        return {
+            "delete": self.num_del,
+            "insert": self.num_ins,
+            "substitution": self.num_sub,
+            "same words": self.num_same,
+        }
