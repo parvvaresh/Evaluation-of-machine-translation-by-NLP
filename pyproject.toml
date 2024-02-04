@@ -1,0 +1,30 @@
+# pyproject.toml
+
+[build-system]
+requires      = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Evaluation machine translation"
+version = "0.4.2"
+description = "common methods used to evaluate machine translation,"
+readme = "README.md"
+authors = [{ name = "Alireza Parvaresh", email = "more.amani@yahoo.com" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+keywords = ["nlp", "machine translation" , "bleu", "nist", "glue" ,"chrf", "wer" , "ter" , "meteor"]
+dependencies = []
+requires-python = ">=3.5"
+
+[project.optional-dependencies]
+dev = []
+
+[project.urls]
+Homepage = "https://github.com/parvvaresh/"
+
+[tool.setuptools]
+py-modules = ['Evaluation machine translation']
