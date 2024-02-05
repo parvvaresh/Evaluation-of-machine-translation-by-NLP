@@ -1,113 +1,62 @@
-import numpy as np
-import string
+import math
+from .tool.n_gram import ngrams
+from .tool.counter_element import counter_element
+from .tool.overlaps_dict import overlaps_dict
 
 
-class wer:
-    def __init__(self):
-        """
-        ref = "the dog is under the table"
-        pred = "The dog is the fable"
-        score = model.fit(pred, ref)
-          ----> 0.33
-        model.get_detail()
-          ----> {'delete': 0, 'insert': 1, 'substitution': 1, 'same words': 4}
+import math
 
-        """
-        pass
+class nist:
+  def __init__(self, n = 5):
+    self.number_n_grams = n
 
-    def wer_score(self, ref, pred):
-        """
-        We used the distance matrix to calculate the number of titles below :
-          1 --- > delete
-          2 --- > insert
-          3 --- > substitution
+  def nist_score(self, refs, pred):
+    pred_ngrams = [ngrams(pred, n) for n in range(1 , self.number_n_grams + 1)]
+    refs_ngrams = [[ngrams(ref, n) for n in range(1, self.number_n_grams + 1)] for ref in refs]
 
-          we use backtrcing method and dynamic programming
+    refs_ngrams_freq ,refs_total_words = dict() , 0
+    for index in range(0, len(refs)):
+      refs_total_words += len(refs[index].split())
+      for num_gram in range(0, self.number_n_grams):
+        count_ngrams = counter_element(refs_ngrams[index][num_gram])
+        for element in count_ngrams:
+          refs_ngrams_freq[element] = (refs_ngrams_freq[element] + count_ngrams[element]) if element in refs_ngrams_freq else 1
 
-        """
-        self.pred = self._preproocess(pred)
-        self.ref = self._preproocess(ref)
+    info = self._info(refs_ngrams_freq, refs_total_words)
 
-        """
-      Define the numbers used 
-        1 -- > same words
-        2 ---> insert
-        3 ---> delete
-        4 ---> substitution
-    """
+    nist_score , pred_lenght, ref_lenght = [], len(pred.split()), 0
+    for n in range(0, self.number_n_grams):
 
-        costs = np.zeros((1 + len(self.pred), 1 + len(self.ref)))
-        self.backtrace = np.zeros((1 + len(self.pred), 1 + len(self.ref)))
+      nist_precisions = list()
+      for index_ref in range(0, len(refs)):
+        ref_count_gram = counter_element(refs_ngrams[index_ref][n])
+        pred_coumt_gram = counter_element(pred_ngrams[n])
+        overlaps_ngram = overlaps_dict(ref_count_gram, pred_coumt_gram)
+        numerator = sum([info[n_gram] * count for n_gram, count in overlaps_ngram.items()])
+        denominator = sum(pred_coumt_gram.values())
+        nist_precisions.append(numerator / denominator)
+      nist_score.append(max(nist_precisions))
+      ref_lenght += len(refs[nist_precisions.index(max(nist_precisions))].split())
 
-        costs[0] = [j for j in range(0, len(self.ref) + 1)]
-        self.backtrace[0][:] = 2
+    return sum(nist_score) * self._length_penalty((ref_lenght / self.number_n_grams), pred_lenght)
 
-        costs[:, 0] = [j for j in range(0, len(self.pred) + 1)]
-        self.backtrace[:][0] = 3
 
-        self.backtrace[0][0] = 10  # None
 
-        for row in range(1, len(self.pred) + 1):
-            for col in range(1, len(self.ref) + 1):
-                if self.pred[row - 1] == self.ref[col - 1]:
-                    costs[row][col] = costs[row - 1][col - 1]
-                    self.backtrace[row][col] = 1
-                else:
-                    substitution = costs[row - 1][col - 1]
-                    delete = costs[row - 1][col]
-                    insert = costs[row][col - 1]
-                    fainal_cost = min(delete, insert, substitution)
-                    costs[row][col] = fainal_cost + 1
-                    if fainal_cost == delete:
-                        self.backtrace[row][col] = 3
-                    elif fainal_cost == insert:
-                        self.backtrace[row][col] = 2
-                    elif fainal_cost == substitution:
-                        self.backtrace[row][col] = 4
 
-        return costs[-1][-1] / len(self.ref)
+  def _info(self, refs_ngrams_freq, refs_total_words):
+    info = dict()
+    for grams_1n in refs_ngrams_freq:
+      grams_1m = grams_1n[ : -1] #w1, w2, ... wn-1
+      occurrence = refs_ngrams_freq[grams_1m] if grams_1m and grams_1m in refs_ngrams_freq else refs_total_words
+      info[grams_1n] = math.log(occurrence / refs_ngrams_freq[grams_1n], 2)
+    return info
 
-    def _preproocess(self, text):
-        """
 
-        It preprocesses the data to prepare it for processing,
-        which includes lowercase all letters, remove punctuation marks, and tokenize words.
 
-        """
-        persian_punctuations = """`÷×؛<>_()*&^%][ـ،/:"؟.,'{}~¦+|!”…“–ـ"""
-        punctuations_list = string.punctuation + persian_punctuations
-        text = text.lower()
-        translator = str.maketrans("", "", punctuations_list)
-        text = text.translate(translator)
-        text = text.split()
-        return text
-
-    def get_detail(self):
-        i, j = len(self.pred), len(self.ref)
-        self.num_same, self.num_del, self.num_sub, self.num_ins = 0, 0, 0, 0
-
-        while i > 0 or j > 0:
-            if self.backtrace[i][j] == 1:
-                i -= 1
-                j -= 1
-                self.num_same += 1
-
-            if self.backtrace[i][j] == 4:
-                i -= 1
-                j -= 1
-                self.num_sub += 1
-
-            if self.backtrace[i][j] == 2:
-                j -= 1
-                self.num_ins += 1
-
-            if self.backtrace[i][j] == 3:
-                i -= 1
-                self.num_del += 1
-
-        return {
-            "delete": self.num_del,
-            "insert": self.num_ins,
-            "substitution": self.num_sub,
-            "same words": self.num_same,
-        }
+  def _length_penalty(self, refs_lenght, pred_lenght):
+    ratio = pred_lenght / refs_lenght
+    if 0 < ratio < 1:
+        beta = math.log(0.5) / math.log(1.5) ** 2
+        return math.exp(beta * math.log(ratio) ** 2)
+    else:
+        return 1
